@@ -49,24 +49,33 @@ class ConfigController extends Controller
             'data' => $mailLog,
         ]);
     }
+
     public function setTelegramWebhook(Request $request)
     {
-        $hookUrl = $this->resolveTelegramWebhookUrl();
-        if (blank($hookUrl)) {
-            return $this->fail([422, 'Telegram Webhook地址未配置']);
+        // 优先从环境变量获取TGURL，其次使用后台配置的webhook地址，最后使用app_url
+        $app_url = env('TGURL');
+        if (blank($app_url)) {
+            $app_url = $this->getTelegramWebhookBaseUrl();
         }
-        $hookUrl .= '?' . http_build_query([
+        if (blank($app_url)) {
+            return $this->fail([422, '请先在.env文件中设置TGURL环境变量，或在后台配置Telegram Webhook地址']);
+        }
+
+        $app_url = rtrim($app_url, '/');
+        if (!str_contains($app_url, '/api/v1/guest/telegram/webhook')) {
+            $app_url .= '/api/v1/guest/telegram/webhook';
+        }
+
+        $hookUrl = $app_url . '?' . http_build_query([
             'access_token' => md5(admin_setting('telegram_bot_token', $request->input('telegram_bot_token')))
         ]);
+
         $telegramService = new TelegramService($request->input('telegram_bot_token'));
         $telegramService->getMe();
         $telegramService->setWebhook(url: $hookUrl);
         $telegramService->registerBotCommands();
-        return $this->success([
-            'success' => true,
-            'webhook_url' => $hookUrl,
-            'webhook_base_url' => $this->getTelegramWebhookBaseUrl(),
-        ]);
+
+        return $this->success(true);
     }
 
     public function fetch(Request $request)
@@ -281,19 +290,5 @@ class ConfigController extends Controller
         }
 
         return null;
-    }
-
-    private function resolveTelegramWebhookUrl(): ?string
-    {
-        $baseUrl = $this->getTelegramWebhookBaseUrl();
-        if (!$baseUrl) {
-            return null;
-        }
-
-        if (str_contains($baseUrl, '/api/v1/guest/telegram/webhook')) {
-            return $baseUrl;
-        }
-
-        return $baseUrl . '/api/v1/guest/telegram/webhook';
     }
 }
