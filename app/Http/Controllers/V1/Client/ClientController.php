@@ -10,8 +10,11 @@ use App\Services\ServerService;
 use App\Services\UserService;
 use App\Utils\Helper;
 use Illuminate\Http\Request;
+use DateTime;
 
 class ClientController extends Controller
+
+
 {
     /**
      * Protocol prefix mapping for server names
@@ -45,7 +48,7 @@ class ClientController extends Controller
 
         if (!$userService->isAvailable($user)) {
             HookManager::call('client.subscribe.unavailable');
-            return response('', 403, ['Content-Type' => 'text/plain']);
+            return response('', 200, ['Content-Type' => 'text/plain']);
         }
 
         return $this->doSubscribe($request, $user);
@@ -194,29 +197,97 @@ class ClientController extends Controller
     {
         if (!isset($servers[0]))
             return;
-        if ($rejectServerCount > 0) {
+
+        // 解析plan信息
+        $planName = isset($user['plan']['name']) ? $user['plan']['name'] : '';
+        $expiredDate = $user['expired_at'] ? date('Y-m-d', $user['expired_at']) : __('长期有效');
+
+        // 如果套餐名称包含"代理",只推送流量和到期时间信息
+        if (mb_strpos($planName, '代理') !== false) {
             array_unshift($servers, array_merge($servers[0], [
-                'name' => "过滤掉{$rejectServerCount}条线路",
+                'name' => "到期时间：{$expiredDate}",
+            ]));
+
+            if ((int) admin_setting('show_info_to_server_enable', 0)) {
+                $useTraffic = $user['u'] + $user['d'];
+                $totalTraffic = $user['transfer_enable'];
+                $remainingTraffic = Helper::trafficConvert($totalTraffic - $useTraffic);
+
+                array_unshift($servers, array_merge($servers[0], [
+                    'name' => "剩余流量：{$remainingTraffic}",
+                ]));
+            }
+            return;
+        }
+
+        array_unshift($servers, array_merge($servers[0], [
+            'name' => "🚨 失败更新订阅",
+        ]));
+
+        array_unshift($servers, array_merge($servers[0], [
+            'name' => "⏰ 到期时间：{$expiredDate}",
+        ]));
+
+        array_unshift($servers, array_merge($servers[0], [
+            'name' => "🌍 官网：budingcat.cc",
+        ]));
+
+
+        if ($rejectServerCount > 0) {
+            array_push($servers, array_merge($servers[0], [
+                'name' => "🔍 过滤掉{$rejectServerCount}条线路",
             ]));
         }
+
         if (!(int) admin_setting('show_info_to_server_enable', 0))
             return;
+
         $useTraffic = $user['u'] + $user['d'];
         $totalTraffic = $user['transfer_enable'];
         $remainingTraffic = Helper::trafficConvert($totalTraffic - $useTraffic);
-        $expiredDate = $user['expired_at'] ? date('Y-m-d', $user['expired_at']) : __('长期有效');
+        $userEmail = $user['email'];
+
         $userService = new UserService();
         $resetDay = $userService->getResetDay($user);
-        array_unshift($servers, array_merge($servers[0], [
-            'name' => "套餐到期：{$expiredDate}",
+        $currentTime = date('Y-m-d H:i:s');
+
+        array_push($servers, array_merge($servers[0], [
+            'name' => "----- 账号信息 -----",
         ]));
-        if ($resetDay) {
-            array_unshift($servers, array_merge($servers[0], [
-                'name' => "距离下次重置剩余：{$resetDay} 天",
-            ]));
+        array_push($servers, array_merge($servers[0], [
+            'name' => "👤 登录账号：{$userEmail}",
+        ]));
+        array_push($servers, array_merge($servers[0], [
+            'name' => "🎁 {$planName}：{$expiredDate}",
+        ]));
+
+        if ($resetDay !== null) {
+            if ($resetDay == 0) {
+                // 今天是重置日
+                $now = new DateTime();
+                $nextMonth = clone $now;
+                $nextMonth->modify('+1 month'); // 下个月同一天
+
+                $interval = $now->diff($nextMonth);
+                $daysToNextReset = $interval->days;
+
+                array_push($servers, array_merge($servers[0], [
+                    'name' => "🔄 今日流量已重置：下次重置还有{$daysToNextReset}天",
+                ]));
+            } else {
+                // 显示剩余天数
+                array_push($servers, array_merge($servers[0], [
+                    'name' => "🔄 流量重置：剩余{$resetDay}天",
+                ]));
+            }
         }
-        array_unshift($servers, array_merge($servers[0], [
-            'name' => "剩余流量：{$remainingTraffic}",
+
+        array_push($servers, array_merge($servers[0], [
+            'name' => "📊 剩余流量：{$remainingTraffic}",
+        ]));
+
+        array_push($servers, array_merge($servers[0], [
+            'name' => "🕒 订阅更新时间：{$currentTime}",
         ]));
     }
 
