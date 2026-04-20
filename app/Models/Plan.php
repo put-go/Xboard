@@ -52,6 +52,7 @@ class Plan extends Model
     public const PRICE_TYPE_RESET_TRAFFIC = 'reset_traffic';  // 重置流量价格
 
     // 定义可用的订阅周期
+    public const PERIOD_WEEKLY = 'weekly';
     public const PERIOD_MONTHLY = 'monthly';
     public const PERIOD_QUARTERLY = 'quarterly';
     public const PERIOD_HALF_YEARLY = 'half_yearly';
@@ -63,6 +64,7 @@ class Plan extends Model
 
     // 定义旧版周期映射
     public const LEGACY_PERIOD_MAPPING = [
+        'week_price' => self::PERIOD_WEEKLY,
         'month_price' => self::PERIOD_MONTHLY,
         'quarter_price' => self::PERIOD_QUARTERLY,
         'half_year_price' => self::PERIOD_HALF_YEARLY,
@@ -126,6 +128,11 @@ class Plan extends Model
     public static function getAvailablePeriods(): array
     {
         return [
+            self::PERIOD_WEEKLY => [
+                'name' => '7天',
+                'days' => 7,
+                'value' => 7 / 30
+            ],
             self::PERIOD_MONTHLY => [
                 'name' => '月付',
                 'days' => 30,

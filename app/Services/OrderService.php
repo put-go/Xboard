@@ -18,6 +18,7 @@ use App\Services\PlanService;
 class OrderService
 {
     const STR_TO_TIME = [
+        Plan::PERIOD_WEEKLY => ['days' => 7],
         Plan::PERIOD_MONTHLY => 1,
         Plan::PERIOD_QUARTERLY => 3,
         Plan::PERIOD_HALF_YEARLY => 6,
@@ -257,9 +258,12 @@ class OrderService
             }
 
             $orderAmountSum = $orders->sum(fn($item) => $item->total_amount + $item->balance_amount + $item->surplus_amount - $item->refund_amount);
-            $orderMonthSum = $orders->sum(fn($item) => self::STR_TO_TIME[PlanService::getPeriodKey($item->period)] ?? 0);
+            $orderCycleDays = $orders->sum(function ($item) {
+                $period = PlanService::getPeriodKey($item->period);
+                return Plan::getPeriodDays($period) > 0 ? Plan::getPeriodDays($period) : 0;
+            });
             $firstOrderAt = $orders->min('created_at');
-            $expiredAt = Carbon::createFromTimestamp($firstOrderAt)->addMonths($orderMonthSum);
+            $expiredAt = Carbon::createFromTimestamp($firstOrderAt)->addDays($orderCycleDays);
 
             $now = now();
             $totalSeconds = $expiredAt->timestamp - $firstOrderAt;
@@ -267,7 +271,9 @@ class OrderService
             $cycleRatio = $totalSeconds > 0 ? $remainSeconds / $totalSeconds : 0;
 
             $plan = Plan::find($user->plan_id);
-            $totalTraffic = $plan?->transfer_enable * $orderMonthSum;
+            $monthlyDays = Plan::getPeriodDays(Plan::PERIOD_MONTHLY);
+            $trafficMultiplier = $monthlyDays > 0 ? $orderCycleDays / $monthlyDays : 0;
+            $totalTraffic = $plan?->transfer_enable * $trafficMultiplier;
             $usedTraffic = Helper::transferToGB($user->u + $user->d);
             $remainTraffic = max(0, $totalTraffic - $usedTraffic);
             $trafficRatio = $totalTraffic > 0 ? $remainTraffic / $totalTraffic : 0;
@@ -375,8 +381,13 @@ class OrderService
         $periodKey = PlanService::getPeriodKey($periodKey);
 
         if (isset(self::STR_TO_TIME[$periodKey])) {
-            $months = self::STR_TO_TIME[$periodKey];
-            return Carbon::createFromTimestamp($timestamp)->addMonths($months)->timestamp;
+            $duration = self::STR_TO_TIME[$periodKey];
+
+            if (is_array($duration) && isset($duration['days'])) {
+                return Carbon::createFromTimestamp($timestamp)->addDays($duration['days'])->timestamp;
+            }
+
+            return Carbon::createFromTimestamp($timestamp)->addMonths($duration)->timestamp;
         }
 
         throw new ApiException('无效的套餐周期');
