@@ -55,12 +55,19 @@ jobs:
         id: get_version
         run: echo "version=$(git describe --tags --always)" >> $GITHUB_OUTPUT
 
+      - name: Set image build identity
+        id: build_identity
+        run: |
+          echo "tag=$(TZ=Asia/Shanghai date '+%Y%m%d-%H%M%S')-${GITHUB_SHA:0:12}" >> "$GITHUB_OUTPUT"
+          echo "created=$(date -u '+%Y-%m-%dT%H:%M:%SZ')" >> "$GITHUB_OUTPUT"
+
       - name: Extract metadata
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
+            type=raw,value=${{ steps.build_identity.outputs.tag }}
             type=ref,event=branch
             type=sha,format=short,prefix=,enable=true
             type=raw,value=new,enable=${{ github.ref == 'refs/heads/master' }}
@@ -69,12 +76,8 @@ jobs:
           labels: |
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.revision=${{ github.sha }}
-
-      - name: Update version in app.php
-        run: |
-          VERSION=$(date '+%Y%m%d')-$(git rev-parse --short HEAD)
-          sed -i "s/'version' => '.*'/'version' => '$VERSION'/g" config/app.php
-          echo "Updated version to: $VERSION"
+            org.opencontainers.image.created=${{ steps.build_identity.outputs.created }}
+            org.opencontainers.image.version=${{ steps.build_identity.outputs.tag }}
 
       - name: Build and push
         id: build-and-push
@@ -94,6 +97,9 @@ jobs:
             CACHEBUST=${{ github.sha }}
             REPO_URL=https://github.com/${{ github.repository }}
             BRANCH_NAME=${{ github.ref_name }}
+            SOURCE_COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ steps.build_identity.outputs.created }}
+            IMAGE_VERSION=${{ steps.build_identity.outputs.tag }}
           provenance: false
           outputs: type=registry,push=true
           allow: |

@@ -47,12 +47,18 @@ COPY .docker /
 ARG CACHEBUST=1
 ARG REPO_URL=https://github.com/put-go/Xboard
 ARG BRANCH_NAME=master
+ARG SOURCE_COMMIT
 
 RUN echo "Attempting to clone branch: ${BRANCH_NAME} from ${REPO_URL} with CACHEBUST: ${CACHEBUST}" && \
     rm -rf ./* && \
     rm -rf .git && \
     git config --global --add safe.directory /www && \
-    git clone --depth 1 --branch ${BRANCH_NAME} ${REPO_URL} . && \
+    git clone --depth 1 --branch "${BRANCH_NAME}" "${REPO_URL}" . && \
+    if [ -n "${SOURCE_COMMIT}" ]; then \
+        git fetch --depth 1 origin "${SOURCE_COMMIT}" && \
+        git checkout --detach "${SOURCE_COMMIT}" && \
+        test "$(git rev-parse HEAD)" = "${SOURCE_COMMIT}"; \
+    fi && \
     git submodule update --init --recursive --force
 
 COPY .docker/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
@@ -72,6 +78,13 @@ ENV ENABLE_WEB=true \
     ENABLE_REDIS=true \
     ENABLE_WS_SERVER=true \
     ENABLE_CADDY=true
+
+ARG BUILD_DATE
+ARG IMAGE_VERSION
+LABEL org.opencontainers.image.source="${REPO_URL}" \
+      org.opencontainers.image.revision="${SOURCE_COMMIT}" \
+      org.opencontainers.image.created="${BUILD_DATE}" \
+      org.opencontainers.image.version="${IMAGE_VERSION}"
 
 EXPOSE 7001
 COPY .docker/entrypoint.sh /entrypoint.sh
