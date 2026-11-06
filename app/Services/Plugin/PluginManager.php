@@ -50,7 +50,8 @@ class PluginManager
 
         $pluginClass = $this->getPluginNamespace($pluginCode) . '\\Plugin';
 
-        if (!class_exists($pluginClass)) {
+        // Resolve the configured plugin path before Composer can autoload it.
+        if (!class_exists($pluginClass, false)) {
             $pluginFile = $this->getPluginPath($pluginCode) . '/Plugin.php';
             if (!File::exists($pluginFile)) {
                 Log::warning("Plugin class file not found: {$pluginFile}");
@@ -60,7 +61,7 @@ class PluginManager
             require_once $pluginFile;
         }
 
-        if (!class_exists($pluginClass)) {
+        if (!class_exists($pluginClass, false)) {
             Log::error("Plugin class not found: {$pluginClass}");
             return null;
         }

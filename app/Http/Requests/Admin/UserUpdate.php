@@ -2,10 +2,13 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Services\Plugin\HookManager;
+use App\Http\Requests\Concerns\NormalizesEmail;
 use Illuminate\Foundation\Http\FormRequest;
 
 class UserUpdate extends FormRequest
 {
+    use NormalizesEmail;
     /**
      * Get the validation rules that apply to the request.
      *
@@ -13,9 +16,9 @@ class UserUpdate extends FormRequest
      */
     public function rules()
     {
-        return [
+        $rules = [
             'id' => 'required|integer',
-            'email' => 'email:strict',
+            'email' => 'email:strict|max:64',
             'password' => 'nullable|min:8',
             'transfer_enable' => 'numeric',
             'expired_at' => 'nullable|integer',
@@ -34,11 +37,13 @@ class UserUpdate extends FormRequest
             'speed_limit' => 'nullable|integer',
             'device_limit' => 'nullable|integer'
         ];
+
+        return HookManager::filter('admin.user.update.rules', $rules, $this);
     }
 
     public function messages()
     {
-        return [
+        $messages = [
             'email.required' => '邮箱不能为空',
             'email.email' => '邮箱格式不正确',
             'transfer_enable.numeric' => '流量格式不正确',
@@ -65,5 +70,7 @@ class UserUpdate extends FormRequest
             'speed_limit.integer' => '限速格式不正确',
             'device_limit.integer' => '设备数量格式不正确'
         ];
+
+        return HookManager::filter('admin.user.update.messages', $messages, $this);
     }
 }

@@ -381,6 +381,12 @@ class Shadowrocket extends AbstractProtocol
                     "obfs" => 'none',
                     "fastopen" => 1
                 ];
+                if (($upMbps = data_get($protocol_settings, 'bandwidth.up')) > 0) {
+                    $params['upmbps'] = $upMbps;
+                }
+                if (($downMbps = data_get($protocol_settings, 'bandwidth.down')) > 0) {
+                    $params['downmbps'] = $downMbps;
+                }
                 if ($serverName = data_get($protocol_settings, 'tls.server_name')) {
                     $params['peer'] = $serverName;
                 }
@@ -411,7 +417,8 @@ class Shadowrocket extends AbstractProtocol
         $params = [
             'alpn' => data_get($protocol_settings, 'alpn'),
             'sni' => data_get($protocol_settings, 'tls.server_name'),
-            'insecure' => data_get($protocol_settings, 'tls.allow_insecure')
+            'insecure' => data_get($protocol_settings, 'tls.allow_insecure'),
+            'congestion_control' => data_get($protocol_settings, 'congestion_control', 'cubic')
         ];
         if (data_get($protocol_settings, 'version') === 4) {
             $params['token'] = $password;

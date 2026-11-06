@@ -4,9 +4,21 @@ namespace App\Utils;
 
 use App\Services\Plugin\HookManager;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Validator;
 
 class Helper
 {
+    private const SUBSCRIPTION_TOKEN_PATTERN = '/\A[a-f0-9]{32}\z/i';
+
+    public static function validateSubscriptionToken(mixed $token): ?string
+    {
+        $validator = Validator::make(['token' => $token], [
+            'token' => ['bail', 'required', 'string', 'regex:' . self::SUBSCRIPTION_TOKEN_PATTERN],
+        ]);
+
+        return $validator->fails() ? null : $validator->validated()['token'];
+    }
+
     public static function uuidToBase64($uuid, $length)
     {
         return base64_encode(substr($uuid, 0, $length));
@@ -93,13 +105,31 @@ class Helper
 
     public static function emailSuffixVerify($email, $suffixs)
     {
-        $suffix = preg_split('/@/', $email)[1];
-        if (!$suffix) return false;
-        if (!is_array($suffixs)) {
-            $suffixs = preg_split('/,/', $suffixs);
+        $suffix = substr(strrchr($email, '@') ?: '', 1);
+        if (!$suffix) {
+            return false;
         }
-        if (!in_array($suffix, $suffixs)) return false;
-        return true;
+
+        $normalizeDomain = static function (string $domain): string {
+            $domain = trim($domain);
+            $ascii = idn_to_ascii(
+                $domain,
+                IDNA_USE_STD3_RULES | IDNA_CHECK_BIDI | IDNA_CHECK_CONTEXTJ | IDNA_NONTRANSITIONAL_TO_ASCII,
+                INTL_IDNA_VARIANT_UTS46
+            );
+
+            return $ascii === false ? mb_strtolower($domain, 'UTF-8') : strtolower($ascii);
+        };
+
+        if (!is_array($suffixs)) {
+            $suffixs = preg_split('/,/', $suffixs) ?: [];
+        }
+
+        return in_array(
+            $normalizeDomain($suffix),
+            array_map($normalizeDomain, $suffixs),
+            true
+        );
     }
 
     public static function trafficConvert(float $byte)

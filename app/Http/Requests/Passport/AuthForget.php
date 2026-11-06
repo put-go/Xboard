@@ -2,10 +2,12 @@
 
 namespace App\Http\Requests\Passport;
 
+use App\Http\Requests\Concerns\NormalizesEmail;
 use Illuminate\Foundation\Http\FormRequest;
 
 class AuthForget extends FormRequest
 {
+    use NormalizesEmail;
     /**
      * Get the validation rules that apply to the request.
      *
@@ -14,9 +16,9 @@ class AuthForget extends FormRequest
     public function rules()
     {
         return [
-            'email' => 'required|email:strict',
+            'email' => 'required|email:strict|max:64',
             'password' => 'required|min:8',
-            'email_code' => 'required'
+            'email_code' => 'required|digits:6'
         ];
     }
 
@@ -27,7 +29,8 @@ class AuthForget extends FormRequest
             'email.email' => __('Email format is incorrect'),
             'password.required' => __('Password can not be empty'),
             'password.min' => __('Password must be greater than 8 digits'),
-            'email_code.required' => __('Email verification code cannot be empty')
+            'email_code.required' => __('Email verification code cannot be empty'),
+            'email_code.digits' => __('Incorrect email verification code')
         ];
     }
 }
